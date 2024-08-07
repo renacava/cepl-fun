@@ -15,11 +15,11 @@
                      &uniform
                      (now :float)
                      (proj :mat4)
-                     (rot-mat :mat4))
-  (let* ((pos (* rot-mat (vec4 vert 0)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 1)))
-         ;;(pos (* rot-mat (vec4 pos 1)))
-         )
+                     (rot :vec3)
+                     ;;(rot-mat :mat4)
+                     )
+  (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 0)))
+         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 1))))
     (* proj pos)))
 
 (defun-g frag-stage ()
@@ -87,7 +87,7 @@
   (map-g #'basic-pipeline *vert-array-buffer-stream*
          :now (now)
          :proj *projection-matrix*
-         :rot-mat (rtg-math.matrix4:rotation-from-euler (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
+         :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
   (step-host)
   (swap)
   )
