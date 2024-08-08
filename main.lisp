@@ -18,31 +18,31 @@
                      (rot :vec3)
                      ;;(rot-mat :mat4)
                      )
-  (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 0)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 1))))
-    (* proj pos)))
+  (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 1)))
+         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0))))
+    (values (* proj pos)
+            vert)))
 
-(defun-g frag-stage ()
-  (vec4 1 0 0 1))
+(defun-g frag-stage ((col :vec3))
+  (let ((col (+ col (vec3 0.5 0.5 0.5))))
+    (vec4 col 1)))
 
 (defpipeline-g basic-pipeline ()
   (vert-stage :vec3)
-  (frag-stage))
+  (frag-stage :vec3))
 
 (defun now ()
   (float (/ (get-internal-real-time) 1000)))
 
 (defun init ()
-  ;;(cepl:quit)
-  ;;(cepl:repl)
   (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*)
   
-  (setf *vert-gpu-index-array* (make-gpu-array (list 0 1 2 0 2 3
-                                                     4 5 6 4 6 7
-                                                     8 10 9 8 11 10
-                                                     12 14 15 12 15 13
-                                                     16 17 18 16 18 19
-                                                     20 21 22 20 23 21)
+  (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
+                                                     6 5 4 7 6 4
+                                                     9 10 8 10 11 8
+                                                     15 14 12 13 15 12
+                                                     18 17 16 19 18 16
+                                                     22 21 20 21 23 20)
                                                :element-type :uint))
   (setf *vert-gpu-array* (make-gpu-array
                           (list (v! -0.5 0.5 -0.5) ;;0   FRONT
@@ -89,17 +89,16 @@
          :proj *projection-matrix*
          :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
   (step-host)
-  (swap)
-  )
+  (swap))
 
 
 (defparameter main-loop-func (lambda ()
                                (step-rendering)
-                               ;;(step-host)
-                               (sleep 0.025)
-                               ))
+                               (step-host)
+                               (sleep 0.025)))
 
 (defun main ()
   (cepl:repl)
   (init)
   (loop (funcall main-loop-func)))
+
