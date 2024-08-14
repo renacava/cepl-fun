@@ -126,10 +126,13 @@
 
 
 (defparameter main-loop-func (lambda ()
-                               (livesupport:update-repl-link)
-                               (step-rendering)
-                               (step-host)
-                               (sleep 0.025)))
+                               (livesupport:continuable
+                                 
+                                 (livesupport:update-repl-link)
+                                 (step-rendering)
+                                 (step-host)
+                                 ;;(sleep 0.025)
+                                 )))
 
 (defun main ()
   (cepl:repl)
