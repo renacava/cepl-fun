@@ -19,7 +19,8 @@
                #:rtg-math
                #:sdl2-game-controller-db
                #:fiveam
-               #:deploy)
+               #:deploy
+               #:livesupport)
   :components ((:file "package")
                (:file "main"))
 	:defsystem-depends-on (:deploy)
