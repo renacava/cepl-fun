@@ -4,37 +4,70 @@
 (defparameter *vert-gpu-index-array* nil)
 (defparameter *vert-array-buffer-stream* nil)
 (defparameter *projection-matrix* nil)
+(defparameter *transform-feedback-gpu-array* nil)
+(defparameter *transform-feedback-stream* nil)
+ 
+(defparameter cube-1 (list (vec3 0.0 1.0 0.0) ;;0   FRONT
+                           (vec3 0.0 0.0 0.0) ;;1
+                           (vec3 1.0 0.0 0.0) ;;2
+                           (vec3 1.0 1.0 0.0) ;;3
 
-(defparameter cube-1 (list (v! -0.5 0.5 -0.5) ;;0   FRONT
-                           (v! -0.5 -0.5 -0.5) ;;1
-                           (v! 0.5 -0.5 -0.5) ;;2
-                           (v! 0.5 0.5 -0.5) ;;3
+                           (vec3 0.0 1.0 1.0) ;;4   BACK
+                           (vec3 1.0 1.0 1.0) ;;5
+                           (vec3 1.0 0.0 1.0) ;;6
+                           (vec3 0.0 0.0 1.0) ;;7
 
-                           (v! -0.5 0.5 0.5) ;;4   BACK
-                           (v! 0.5 0.5 0.5) ;;5
-                           (v! 0.5 -0.5 0.5) ;;6
-                           (v! -0.5 -0.5 0.5) ;;7
+                           (vec3 0.0 1.0 0.0) ;;8   LEFT
+                           (vec3 0.0 0.0 0.0) ;;9
+                           (vec3 0.0 0.0 1.0) ;;1.00
+                           (vec3 0.0 1.0 1.0) ;;1.0
 
-                           (v! -0.5 0.5 -0.5) ;;8   LEFT
-                           (v! -0.5 -0.5 -0.5) ;;9
-                           (v! -0.5 -0.5 0.5) ;;10
-                           (v! -0.5 0.5 0.5) ;;11
+                           (vec3 1.0 1.0 0.0) ;;1.02   RIGHT
+                           (vec3 1.0 1.0 1.0) ;;1.03
+                           (vec3 1.0 0.0 0.0) ;;1.04
+                           (vec3 1.0 0.0 1.0) ;;1.05
 
-                           (v! 0.5 0.5 -0.5) ;;12   RIGHT
-                           (v! 0.5 0.5 0.5) ;;13
-                           (v! 0.5 -0.5 -0.5) ;;14
-                           (v! 0.5 -0.5 0.5) ;;15
+                           (vec3 0.0 1.0 1.0) ;;1.06  TOP
+                           (vec3 0.0 1.0 0.0) ;;1.07
+                           (vec3 1.0 1.0 0.0) ;;1.08
+                           (vec3 1.0 1.0 1.0) ;;1.09
 
-                           (v! -0.5 0.5 0.5) ;;16  TOP
-                           (v! -0.5 0.5 -0.5) ;;17
-                           (v! 0.5 0.5 -0.5) ;;18
-                           (v! 0.5 0.5 0.5) ;;19
-
-                           (v! -0.5 -0.5 0.5) ;;20  BOTTOM
-                           (v! 0.5 -0.5 -0.5) ;;21
-                           (v! -0.5 -0.5 -0.5) ;;22
-                           (v! 0.5 -0.5 0.5) ;;23
+                           (vec3 0.0 0.0 1.0) ;;20  BOTTOM
+                           (vec3 1.0 0.0 0.0) ;;21.0
+                           (vec3 0.0 0.0 0.0) ;;22
+                           (vec3 1.0 0.0 1.0) ;;23
                            ))
+
+;; (defparameter cube-1 (list (v! -0.5 0.5 -0.5) ;;0   FRONT
+;;                            (v! -0.5 -0.5 -0.5) ;;1
+;;                            (v! 0.5 -0.5 -0.5) ;;2
+;;                            (v! 0.5 0.5 -0.5) ;;3
+
+;;                            (v! -0.5 0.5 0.5) ;;4   BACK
+;;                            (v! 0.5 0.5 0.5) ;;5
+;;                            (v! 0.5 -0.5 0.5) ;;6
+;;                            (v! -0.5 -0.5 0.5) ;;7
+
+;;                            (v! -0.5 0.5 -0.5) ;;8   LEFT
+;;                            (v! -0.5 -0.5 -0.5) ;;9
+;;                            (v! -0.5 -0.5 0.5) ;;10
+;;                            (v! -0.5 0.5 0.5) ;;11
+
+;;                            (v! 0.5 0.5 -0.5) ;;12   RIGHT
+;;                            (v! 0.5 0.5 0.5) ;;13
+;;                            (v! 0.5 -0.5 -0.5) ;;14
+;;                            (v! 0.5 -0.5 0.5) ;;15
+
+;;                            (v! -0.5 0.5 0.5) ;;16  TOP
+;;                            (v! -0.5 0.5 -0.5) ;;17
+;;                            (v! 0.5 0.5 -0.5) ;;18
+;;                            (v! 0.5 0.5 0.5) ;;19
+
+;;                            (v! -0.5 -0.5 0.5) ;;20  BOTTOM
+;;                            (v! 0.5 -0.5 -0.5) ;;21
+;;                            (v! -0.5 -0.5 -0.5) ;;22
+;;                            (v! 0.5 -0.5 0.5) ;;23
+;;                            ))
 
 (defparameter cube-2 (list (v! -0.2 0.2 -0.6) ;;0   FRONT
                            (v! -0.2 -0.2 -0.6) ;;1
@@ -73,6 +106,25 @@
 (defun try-free-objects (&rest objects)
   (mapcar #'try-free objects))
 
+(defun-g int-to-cube-float ((my-int :uint))
+  (float my-int)
+
+  (if (= my-int 0)
+      -0.5f0
+      (if (= my-int 1)
+          0.5f0
+          123f0
+          ;;(float my-int)
+          ;; (if (= my-int 0)
+          ;;     0.0
+          ;;     1.0
+          ;;     ;;(float my-int)
+          ;;     )
+          ))
+  ;; (let ((my-float (float my-int)))
+  ;;   (* my-float 0.5))
+  )
+
 (defun-g vert-stage ((vert :vec3)
                      &uniform
                      (now :float)
@@ -81,17 +133,41 @@
                      ;;(rot-mat :mat4)
                      )
   (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 1)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0))))
+         ;; (pos (ivec4 (int (aref vert 0))
+         ;;             (int (aref vert 1))
+         ;;             (int (aref vert 2))
+         ;;             1))
+         
+         (col (if (or (isinf (aref pos 0))
+                      (isinf (aref pos 1))
+                      (isinf (aref pos 2)))
+                  (vec3 1.0 0.0 0.0)
+                  (vec3 0.0 0.0 1.0)))
+         ;;(pos (+ pos (vec4 -200 2 -300.5 0)))
+         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0)))
+         ;;(pos (+ pos (vec4 0 0 -5 0)))
+         )
     (values (* proj pos)
-            vert)))
+     
+            (vec3 (aref pos 0)
+                 (aref pos 1)
+                 (aref pos 2))
+            (:feedback :flat (ivec4 (int (aref pos 0))
+                                    (int (aref pos 1))
+                                    (int (aref pos 2))
+                                    (int (aref pos 3))))
+            ;;(vec3 (aref vert 0) (aref vert 1) (aref vert 2))
+            )))
 
-(defun-g frag-stage ((col :vec3))
-  (let ((col (+ col (vec3 0.5 0.5 0.5))))
-    (vec4 col 1)))
+(defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4))
+  (vec4 col 1)
+  ;; (let ((col (+ col (vec3 0.5 0.5 0.5))))
+  ;;   (vec4 col 1))
+  )
 
 (defpipeline-g basic-pipeline ()
   (vert-stage :vec3)
-  (frag-stage :vec3))
+  (frag-stage :vec3 :ivec4))
 
 (defun now ()
   (float (/ (get-internal-real-time) 1000)))
@@ -107,13 +183,19 @@
                                                      22 21 20 21 23 20)
                                                :element-type :uint))
   (setf *vert-gpu-array* (make-gpu-array
-                          cube-1))
+                          cube-1
+                          :element-type :vec3))
   (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
   (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
                                                               (y (resolution (current-viewport)))
                                                               0.1
                                                               30f0
-                                                              60f0)))
+                                                              60f0))
+
+  (setf *transform-feedback-gpu-array* (make-gpu-array nil :dimensions 24 :element-type :vec4))
+  (setf *transform-feedback-stream* (make-transform-feedback-stream *transform-feedback-gpu-array*))
+
+  )
 
 (defparameter my-second-buffer nil)
 (defparameter my-second-array nil)
@@ -133,10 +215,11 @@
       
       ;;nil
       (when *vert-array-buffer-stream*
-        (map-g #'basic-pipeline *vert-array-buffer-stream*
-               :now (now)
-               :proj *projection-matrix*
-               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))))
+        (with-transform-feedback (*transform-feedback-stream*)
+         (map-g #'basic-pipeline *vert-array-buffer-stream*
+                :now (now)
+                :proj *projection-matrix*
+                :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
   ;; (if *vert-array-buffer-stream*
   ;;     (map-g #'basic-pipeline *vert-array-buffer-stream*
   ;;            :now (now)
@@ -214,39 +297,156 @@
   (init-ctx)
   
   (bt:make-thread (lambda ()
-                    (with-cepl-context (loader-context ctx)
-                      (loop (livesupport:continuable (funcall inner-loader-thread-func)))))))
+                    (loop (livesupport:continuable (funcall inner-loader-thread-func))))))
 
 ;; we could have an issue wherein the context is defined outside of the lambda... like a binding issue, we're not doing dynamic binding but rather binding on definition. sigh.
-
-
-
-
-;; (defun reset ()
-;;   (unless ctx
-;;     (setf ctx (cepl.context:make-context-shared-with-current-context))
-;;     )
-;;   (bt:make-thread
-;;    (lambda ()
-;;      (with-cepl-context (woop ctx)
-;;        (setf *vert-array-buffer-stream* (make-buffer-stream (make-gpu-array cube-2) :index-array *vert-gpu-index-array*))
-;;        ;;(gl:begin :triangles)
-;;        ;; (let ((new-buffer (make-buffer-stream (make-gpu-array cube-2) :index-array *vert-gpu-index-array*))
-;;        ;;       (temp-buffer *vert-array-buffer-stream*))
-;;        ;;   (setf last-run (now))
-;;        ;;   (setf *vert-array-buffer-stream* new-buffer)
-;;        ;;   (try-free temp-buffer))
-;;        ;;(setf *vert-array-buffer-stream* nil)
-;;        ;;(gl:end)
-;;        ;;(gl:finish)
-;;        ;;(cepl.context::free-context woop)
-;;        )))
-;;   )
-
-
 
 (defun main ()
   (cepl:repl)
   (init)
+  (make-loader-thread)
   (loop (funcall main-loop-func)))
 
+
+;;=======================
+(defparameter *chunk-width* 16)
+(defparameter *chunk-height* 128)
+(defparameter *texture-atlas-size* 256)
+
+(defparameter my-cube (list
+                       (list (vec3 0.0 0.0 0.0)
+                             (vec3 1.0 0.0 0.0)
+                             (vec3 1.0 1.0 0.0)
+                             (vec3 0.0 1.0 0.0)
+                             (vec3 0.0 0.0 1.0)
+                             (vec3 1.0 0.0 1.0)
+                             (vec3 1.0 1.0 1.0)
+                             (vec3 0.0 1.0 1.0))
+                       (list 0 1 2 0 2 3
+                             3 2 6 3 6 7
+                             1 5 6 1 6 2
+                             4 0 3 4 3 7
+                             5 4 7 5 7 6
+                             5 1 0 5 0 4)
+                       ))
+
+(defun 3d-to-1d (x y z &optional (cols *chunk-width*) (depth *chunk-height*))
+  (+ x (* y cols) (* z cols depth)))
+
+(defun 2d-to-1d (x y &optional (cols *texture-atlas-size*))
+  (+ x (* y cols)))
+
+
+(defun tack (place obj)
+  "Tacks place at the end of obj, returns a proper list"
+  (if (and
+       (not (listp place))
+       (not (listp obj)))
+      (list place obj)
+      (if (not (listp place))
+	  (append (list place) obj)
+	  (append place (cons obj nil)))))
+
+(defun elt-insert (sequence index value)
+  "Non-destructively inserts an element in a sequence"
+  (let ((temp (copy-tree sequence)) (true-index index))
+    (when (< true-index 0)
+      (setf true-index 0))
+    (when (> true-index (length sequence))
+      (setf true-index (length sequence)))	     
+    (append (tack (subseq temp 0 true-index) value) (subseq temp true-index))))
+
+
+(defun left-pad-t (sequence times &optional (padding 0))
+  "Pads the sequence on the left times number of times"
+  (let ((result (copy-seq sequence)))
+    (dotimes (i times)
+      (setf result (elt-insert result 0 padding)))
+    result))
+
+(defun left-pad-l (sequence desired-length &optional (padding 0))
+  "Pads the sequence on the left until its length is equal to desired-length"
+  (left-pad-t sequence (max 0 (- desired-length (length sequence))) padding))
+
+(defun left-pad (sequence &key desired-length times (padding 0))
+  "Pads the sequence on the left, either with the desired length, or the number of times to pad, not both"
+  (if (or (and desired-length times) (and (not desired-length) (not times)))
+      (error "Can't set both a :desired-length and :times in left pad")
+      (if times
+	  (left-pad-t sequence times padding)
+	  (left-pad-l sequence desired-length padding))))
+
+(defun pad-int-left-to-str (int-to-pad desired-length)
+  (let* ((int-str (format nil "~a" int-to-pad))
+         (int-lst (coerce int-str 'list)))
+    (coerce
+     (left-pad int-lst :desired-length desired-length :padding #\0)
+     'string)))
+
+(defun encode-vert-data (pos-index uv-index face-light-float texture-atlas-index)
+  (let ((face-light-float (pad-int-left-to-str (truncate face-light-float) 2))
+        (texture-atlas-index (pad-int-left-to-str (truncate texture-atlas-index) 5)))
+    (parse-integer
+     (format nil "1~a~a~a~a"
+             (truncate pos-index)
+             (truncate uv-index)
+             face-light-float
+             texture-atlas-index))))
+
+(defun 1d-to-3dc (index cols depth)
+  (let* ((z (truncate (/ index (* cols depth))))
+         (index (- index (* z cols depth)))
+         (x (mod index cols))
+         (y (truncate (/ index cols))))
+    (vec3 (float x) (float y) (float z))))
+
+(defun 1d-to-2dc (index cols)
+  (let* ((x (mod index cols))
+         (y (truncate (/ index cols))))
+    (vec2 (float x) (float y))))
+
+(defun decode-vert-data (vert-int)
+  (let* ((vert (format nil "~a" vert-int))
+         (pos (parse-integer (format nil "~a" (char vert 1))))
+         (uv (parse-integer (format nil "~a" (char vert 2))))
+         (face-float (parse-integer (subseq vert 3 5)))
+         (texture-atlas-index (parse-integer (subseq vert 5 10))))
+    (list :pos (1d-to-3dc pos 2 2)
+          :uv (1d-to-2dc uv 2)
+          :face-float face-float
+          :texture-atlas-index (1d-to-2dc texture-atlas-index 128))))
+
+(defun decode-vert-data-nostrings (vert-int)
+  (let* ((vert (- vert-int 1000000000))
+         (pos (truncate (/ vert 100000000)))
+         (vert (- vert (* pos 100000000)))
+
+         (uv (truncate (/ vert 10000000)))
+         (vert (- vert (* uv 10000000)))
+         (uv (1d-to-2dc uv 2))
+         (face-float (float (truncate (/ vert 100000))))
+         (vert (- vert (* face-float 100000)))
+
+         (texture-atlas-index (1d-to-2dc vert 128)))
+    (list :pos (1d-to-3dc pos 2 2)
+          :uv uv
+          :face-float face-float
+          :texture-atlas-index texture-atlas-index)))
+
+(defun decode-test(vert-int)
+  (let* ((vert (- vert-int 1000000000))
+         (pos (truncate (/ vert 100000000)))
+         (vert (- vert (* pos 100000000)))
+
+         (uv (truncate (/ vert 10000000)))
+         (vert (- vert (* uv 10000000)))
+         ;;(uv (1d-to-2dc uv 2))
+         (face-float (float (truncate (/ vert 100000))))
+         (vert (- vert (* face-float 100000)))
+
+         (texture-atlas-index vert))
+    (list :pos pos
+          :uv uv
+          :face-float face-float
+          :texture-atlas-index texture-atlas-index)))
+;;==========================
