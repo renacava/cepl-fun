@@ -1,5 +1,11 @@
 (in-package #:cepl-fun)
 
+(defmacro without-depth (&body body)
+  `(progn
+     (gl:disable :depth-test)
+     ,@body
+     (gl:enable :depth-test)))
+
 (defparameter *vert-gpu-array* nil)
 (defparameter *vert-gpu-index-array* nil)
 (defparameter *vert-array-buffer-stream* nil)
@@ -38,67 +44,16 @@
                            (vec3 1.0 0.0 1.0) ;;23
                            ))
 
-;; (defparameter cube-1 (list (v! -0.5 0.5 -0.5) ;;0   FRONT
-;;                            (v! -0.5 -0.5 -0.5) ;;1
-;;                            (v! 0.5 -0.5 -0.5) ;;2
-;;                            (v! 0.5 0.5 -0.5) ;;3
+(defparameter plane-1 (list (list (vec3 -1.0 -1.0 0.0) (vec2 0.0 0.0))
+                            (list (vec3 1.0 -1.0 0.0) (vec2 1.0 0.0))
+                            (list (vec3 1.0 1.0 0.0) (vec2 1.0 1.0))
+                            (list (vec3 -1.0 1.0 0.0) (vec2 0.0 1.0))))
 
-;;                            (v! -0.5 0.5 0.5) ;;4   BACK
-;;                            (v! 0.5 0.5 0.5) ;;5
-;;                            (v! 0.5 -0.5 0.5) ;;6
-;;                            (v! -0.5 -0.5 0.5) ;;7
+(defparameter plane-indices (vector 0 1 2 0 2 3))
 
-;;                            (v! -0.5 0.5 -0.5) ;;8   LEFT
-;;                            (v! -0.5 -0.5 -0.5) ;;9
-;;                            (v! -0.5 -0.5 0.5) ;;10
-;;                            (v! -0.5 0.5 0.5) ;;11
-
-;;                            (v! 0.5 0.5 -0.5) ;;12   RIGHT
-;;                            (v! 0.5 0.5 0.5) ;;13
-;;                            (v! 0.5 -0.5 -0.5) ;;14
-;;                            (v! 0.5 -0.5 0.5) ;;15
-
-;;                            (v! -0.5 0.5 0.5) ;;16  TOP
-;;                            (v! -0.5 0.5 -0.5) ;;17
-;;                            (v! 0.5 0.5 -0.5) ;;18
-;;                            (v! 0.5 0.5 0.5) ;;19
-
-;;                            (v! -0.5 -0.5 0.5) ;;20  BOTTOM
-;;                            (v! 0.5 -0.5 -0.5) ;;21
-;;                            (v! -0.5 -0.5 -0.5) ;;22
-;;                            (v! 0.5 -0.5 0.5) ;;23
-;;                            ))
-
-(defparameter cube-2 (list (v! -0.2 0.2 -0.6) ;;0   FRONT
-                           (v! -0.2 -0.2 -0.6) ;;1
-                           (v! 0.2 -0.2 -0.6) ;;2
-                           (v! 0.2 0.2 -0.6) ;;3
-
-                           (v! -0.2 0.2 0.6) ;;4   BACK
-                           (v! 0.2 0.2 0.6) ;;5
-                           (v! 0.2 -0.2 0.6) ;;6
-                           (v! -0.2 -0.2 0.6) ;;7
-
-                           (v! -0.2 0.2 -0.6) ;;8   LEFT
-                           (v! -0.2 -0.2 -0.6) ;;9
-                           (v! -0.2 -0.2 0.6) ;;10
-                           (v! -0.2 0.2 0.6) ;;11
-
-                           (v! 0.2 0.2 -0.6) ;;12   RIGHT
-                           (v! 0.2 0.2 0.6) ;;13
-                           (v! 0.2 -0.2 -0.6) ;;14
-                           (v! 0.2 -0.2 0.6) ;;15
-
-                           (v! -0.2 0.2 0.6) ;;16  TOP
-                           (v! -0.2 0.2 -0.6) ;;17
-                           (v! 0.2 0.2 -0.6) ;;18
-                           (v! 0.2 0.2 0.6) ;;19
-
-                           (v! -0.2 -0.2 0.6) ;;20  BOTTOM
-                           (v! 0.2 -0.2 -0.6) ;;21
-                           (v! -0.2 -0.2 -0.6) ;;22
-                           (v! 0.2 -0.2 0.6) ;;23
-                           ))
+(defparameter plane-vert-array nil)
+(defparameter plane-index-array nil)
+(defparameter plane-buffer-stream nil)
 
 (defun try-free (object)
   (when object (free object)))
@@ -176,11 +131,28 @@
   (vert-stage :vec3)
   (frag-stage :vec3 :ivec4))
 
+
+(defun-g plane-vert-stage ((vert g-pt))
+  (values (vec4 (pos vert) 1.0)
+          (pos vert)
+          (tex vert)))
+
+(defun-g plane-frag-stage ((pos :vec3) (texture-coordinate :vec2) &uniform (tex-sampler :sampler-2d))
+  (vec4 (mod (aref pos 0) 1.0)
+        (mod (aref pos 1) 1.0)
+        (mod (aref pos 2) 1.0)
+        1.0))
+
+(defpipeline-g plane-pipeline ()
+  (plane-vert-stage g-pt)
+  (plane-frag-stage :vec3 :vec2))
+
 (defun now ()
   (float (/ (get-internal-real-time) 1000)))
 
 (defun init ()
-  (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*)
+  (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*
+                    plane-vert-array plane-index-array plane-buffer-stream)
   
   (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
                                                      6 5 4 7 6 4
@@ -193,6 +165,13 @@
                           cube-1
                           :element-type :vec3))
   (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
+
+
+  (setf plane-vert-array (make-gpu-array plane-1 :element-type 'g-pt)
+        plane-index-array (make-gpu-array plane-indices :element-type :uint))
+  (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array))
+
+  
   (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
                                                               (y (resolution (current-viewport)))
                                                               0.1
@@ -208,38 +187,50 @@
 (defparameter my-second-array nil)
 (defparameter my-cool-fbo nil)
 
+(defparameter rendering-paused? nil)
+(defparameter blending-params nil)
+
 (defun step-rendering ()
-  (clear)
-  (unless my-cool-fbo
-    (setf my-cool-fbo (make-fbo 0)))
-  ;; (if my-second-array
-  ;;     (progn
-  ;;       (progn
-  ;;         (try-free my-second-buffer)
-  ;;         (setf my-second-buffer nil)
-  ;;         (setf my-second-buffer (make-buffer-stream my-second-array :index-array *vert-gpu-index-array*)))
-  ;;       (map-g #'basic-pipeline my-second-buffer
-  ;;              :now (now)
-  ;;              :proj *projection-matrix*
-  ;;              :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
+  (unless rendering-paused?
+    (clear)
+    (unless my-cool-fbo
+      (setf my-cool-fbo (make-fbo 0)))
+    ;; (if my-second-array
+    ;;     (progn
+    ;;       (progn
+    ;;         (try-free my-second-buffer)
+    ;;         (setf my-second-buffer nil)
+    ;;         (setf my-second-buffer (make-buffer-stream my-second-array :index-array *vert-gpu-index-array*)))
+    ;;       (map-g #'basic-pipeline my-second-buffer
+    ;;              :now (now)
+    ;;              :proj *projection-matrix*
+    ;;              :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
+    
+    ;;     ;;nil
+    ;;     (when *vert-array-buffer-stream*
+    ;;       (with-transform-feedback (*transform-feedback-stream*)
+    ;;        (map-g #'basic-pipeline *vert-array-buffer-stream*
+    ;;               :now (now)
+    ;;               :proj *projection-matrix*
+    ;;               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
+    (with-blending (or blending-params
+                       (setf blending-params (make-blending-params)))
+      (without-depth
+        (if plane-buffer-stream
+            (map-g #'plane-pipeline plane-buffer-stream)))
       
-  ;;     ;;nil
-  ;;     (when *vert-array-buffer-stream*
-  ;;       (with-transform-feedback (*transform-feedback-stream*)
-  ;;        (map-g #'basic-pipeline *vert-array-buffer-stream*
-  ;;               :now (now)
-  ;;               :proj *projection-matrix*
-  ;;               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
-  (if *vert-array-buffer-stream*
-      (map-g #'basic-pipeline *vert-array-buffer-stream*
-             :now (now)
-             :proj *projection-matrix*
-             :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
-      )
-  
+      (if *vert-array-buffer-stream*
+          
+          (map-g #'basic-pipeline *vert-array-buffer-stream*
+                 :now (now)
+                 :proj *projection-matrix*
+                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))))
+
+    
+    (swap))
   
   (step-host)
-  (swap))
+  )
 
 
 (defparameter main-loop-func (lambda ()
@@ -316,6 +307,8 @@
   (init)
   (make-loader-thread)
   (loop (funcall main-loop-func)))
+
+
 
 
 ;;=======================
