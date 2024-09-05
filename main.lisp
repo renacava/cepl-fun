@@ -10,8 +10,8 @@
 (defparameter *vert-gpu-index-array* nil)
 (defparameter *vert-array-buffer-stream* nil)
 (defparameter *projection-matrix* nil)
-;;(defparameter *transform-feedback-gpu-array* nil)
-;;(defparameter *transform-feedback-stream* nil)
+(defparameter *transform-feedback-gpu-array* nil)
+(defparameter *transform-feedback-stream* nil)
  
 (defparameter cube-1 (list (vec3 0.0 1.0 0.0) ;;0   FRONT
                            (vec3 0.0 0.0 0.0) ;;1
@@ -84,51 +84,110 @@
                      &uniform
                      (now :float)
                      (proj :mat4)
-                     (rot :vec3))
+                     (rot :vec3)
+                     ;;(sampler :sampler-2d)
+                     )
   (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 1)))
          (col (if (or (isinf (aref pos 0))
                       (isinf (aref pos 1))
                       (isinf (aref pos 2)))
                   (vec3 1.0 0.0 0.0)
                   (vec3 0.0 0.0 1.0)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0))))
+         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0)))
+         ;; (my-sample (texture sampler (vec2 (mod (aref pos 0) 1.0)
+         ;;                                   (mod (aref pos 1) 1.0))))
+         )
     (values (* proj pos)
      
-            (vec3 (aref vert 0)
-                  (aref vert 1)
-                  (aref vert 2))
-            (:feedback :flat (ivec4 (int (aref pos 0))
+            ;; (vec3 (aref vert 0)
+            ;;       (aref vert 1)
+            ;;       (aref vert 2))
+            (:smooth (vec3 (aref vert 0)
+                           (aref vert 1)
+                           (aref vert 2)))
+            (:flat (ivec4 (int (aref pos 0))
                                     (int (aref pos 1))
                                     (int (aref pos 2))
-                                    (int (aref pos 3)))))))
+                                    (int (aref pos 3))))
+            ;;my-sample
+            (vec4 1.0 1.0 1.0 1.0)
+            )))
 
-(defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4) &uniform (sampler :sampler-2d))
-  (let ((col (vec4 (mod (aref col 0) 1.0)
-                   (mod (aref col 1) 1.0)
-                   (mod (aref col 2) 1.0)
-                   1.0)))
-    col)
+;; (defun-g 1d-to-2d ((index :int) (cols :int))
+;;   (let* ((x (mod index cols))
+;;          (y (int (/ index cols))))
+;;     (vec2 (float x) (float y))))
+
+(defun-g my-cool-func-g ((uv :vec2) &uniform (sampler :sampler-2d))
+  ;;(texture sampler uv)
+  (texel-fetch sampler (ivec2 (int (aref uv 0)) (int (aref uv 1))) 0)
+  )
+
+(defstruct-g ssbo-struct
+  (data (:vec4 3648) :accessor data))
+
+(defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4) (my-sample :vec4) &uniform (my-ssbo ssbo-struct :ssbo))
+  (let* (;; (col (vec4 (mod (aref col 0) 1.0)
+         ;;           (mod (aref col 1) 1.0)
+         ;;           (mod (aref col 2) 1.0)
+         ;;           1.0))
+         ;; (my-sample (texture sampler (vec2 (mod (aref col 0) 1.0)
+         ;;                                   (mod (aref col 1) 1.0))))
+         ;; (my-texel (texel-fetch sampler
+         ;;                        (ivec2 16
+         ;;                               16)
+         ;;                        0))
+         ;; (modulated-sample (vec4 (mod (aref my-sample 0) 1.0)
+         ;;                         (mod (aref my-sample 1) 1.0)
+         ;;                         (mod (aref my-sample 2) 1.0)
+         ;;                         1.0))
+         (uv (vec2 (aref col 0)
+                   (aref col 1)))
+         (uv-index (int (mod (+ (* 640 (aref uv 0))
+                                (* 570 (aref uv 1))
+                                -1)
+                             3648)))
+         (my-ssbo-data (/ (aref (data my-ssbo) uv-index) 255.0)))
+    col
+    my-ssbo-data;;modulated-sample
+    ;;my-texel
+    )
   ;;(vec4 1.0 1.0 1.0 1.0)
-  (texture sampler (vec2 (mod (aref col 0) 1.0) (mod (aref col 1) 1.0)))
+  ;;(texture sampler (vec2 (mod (aref col 0) 1.0) (mod (aref col 1) 1.0)))
   ;;col
   )
 
 (defpipeline-g basic-pipeline ()
   (vert-stage :vec3)
-  (frag-stage :vec3 :ivec4))
+  (frag-stage :vec3 :ivec4 :vec4))
 
 
 (defun-g plane-vert-stage ((vert g-pt))
   (values (vec4 (pos vert) 1.0)
-          (pos vert)
-          (tex vert)))
+          (:smooth (pos vert))
+          (:smooth (tex vert))))
 
-(defun-g plane-frag-stage ((pos :vec3) (texture-coordinate :vec2) &uniform (tex-sampler :sampler-2d))
-  (vec4 (mod (aref pos 0) 1.0)
-        (mod (aref pos 1) 1.0)
-        (mod (aref pos 2) 1.0)
-        1.0)
-  (texture tex-sampler texture-coordinate)
+(defun-g plane-frag-stage ((pos :vec3) (texture-coordinate :vec2)
+                           &uniform
+                           (tex-sampler :sampler-2d)
+                           (ssbo ssbo-struct :ssbo))
+  (let* ((uv-index (int (mod (+ (* 64 (aref pos 0))
+                                (* 57 (aref pos 1)))
+                             3648)))
+         (my-data (/ (aref (data ssbo) uv-index) 255.0)))
+    my-data
+    ;;(+ my-data (vec4 0.0 0.0 0.0 1.0))
+    
+    )
+  ;; (vec4 (mod (aref pos 0) 1.0)
+  ;;       (mod (aref pos 1) 1.0)
+  ;;       (mod (aref pos 2) 1.0)
+  ;;       1.0)
+  
+  ;; (vec4 (abs (aref pos 0))
+  ;;       (abs (aref pos 1))
+  ;;       (abs (aref pos 2)))
+  ;;(texture tex-sampler texture-coordinate)
   )
 
 (defpipeline-g plane-pipeline ()
@@ -142,7 +201,7 @@
   (surface-resolution (current-surface (cepl-context))))
 
 (defparameter render-context nil)
-(defparameter cube-render-func (lambda () (step-rendering-cube)))
+(defparameter cube-render-func (lambda () (livesupport:continuable (step-rendering-cube))))
 
 (defun start-cube-render-thread ()
   (unless render-context (setf render-context (make-context-shared-with-current-context)))
@@ -160,164 +219,227 @@
                                                      cube-1
                                                      :element-type :vec3))
                              (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
-                             (setf (cepl:depth-test-function) #'<)
-                             (setq my-depth-func (cepl:depth-test-function))
-                             (defparameter cute-tex (dirt:load-image-to-texture "3.jpg"))
-                             (defparameter cute-sampler (sample cute-tex))
+                             (setf *transform-feedback-gpu-array* (make-gpu-array nil :dimensions 24 :element-type :vec4))
+                             (setf *transform-feedback-stream* (make-transform-feedback-stream *transform-feedback-gpu-array*))
+                             (gl:enable :depth-test)
+                             (temp-func-setup-rendering)
                              (loop (funcall cube-render-func))
                              ))
                          :name "cube-rendering-thread"))
 
-(defun init ()
-  (try-free-objects plane-vert-array plane-index-array plane-buffer-stream)
-
-  (setf plane-vert-array (make-gpu-array plane-1 :element-type 'g-pt)
-        plane-index-array (make-gpu-array plane-indices :element-type :uint))
-  (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array)))
-
-(defparameter my-second-buffer nil)
-(defparameter my-second-array nil)
 (defparameter my-cool-fbo nil)
 (defparameter my-cool-fbo-texture nil)
 (defparameter my-cool-fbo-texture-sampler nil)
 (defparameter fbo-texture-lock (bt:make-lock "fbo-texture-lock"))
 (defparameter fbo-tex-mutex (sb-thread:make-mutex))
+(defparameter cute-tex nil)
+(defparameter cute-sampler nil)
+
+(defun temp-func-setup-rendering ()
+  (try-free-objects ;;my-cool-fbo
+                    my-cool-fbo-texture my-cool-fbo-texture-sampler
+                    cute-tex cute-sampler)
+
+  (setf (cepl:depth-test-function) #'<)
+  (setq my-depth-func (cepl:depth-test-function))
+  (setf my-cool-fbo (make-fbo 0 :d))
+  (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0))
+  (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture))
+  (setf cute-tex (dirt:load-image-to-texture "3.jpg"))
+  (setf cute-sampler (sample cute-tex))
+  
+  ;; (unless my-cool-fbo
+  ;;   )
+  ;; (unless my-cool-fbo-texture
+  ;;   )
+  ;; (unless my-cool-fbo-texture-sampler
+  ;;   )
+  ;;(loop (funcall cube-render-func))
+  )
+
+(defun init ()
+  (unless my-cool-image-data
+    (setf my-cool-image-data (list (list (loop for row in (pull-g (dirt:load-image-to-c-array "3.jpg"))
+                                               append (mapcar #'v! row))))))
+  (unless my-cool-texture-c-array
+    (setf my-cool-texture-c-array (make-c-array my-cool-image-data
+                                                :dimensions 1
+                                                :element-type 'ssbo-struct)))
+  (unless my-cool-gpu-array
+    (setf my-cool-gpu-array (make-gpu-array my-cool-texture-c-array :element-type 'ssbo-struct)))
+  (unless my-cool-ssbo
+    (setf my-cool-ssbo (make-ssbo my-cool-gpu-array 'ssbo-struct)))
+  (try-free-objects plane-vert-array plane-index-array plane-buffer-stream)
+
+  (setf plane-vert-array (make-gpu-array plane-1 :element-type 'g-pt)
+        plane-index-array (make-gpu-array plane-indices :element-type :uint))
+  (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array))
+  (ignore-errors
+   (setf (resolution (current-viewport))
+         (get-cepl-context-surface-resolution)))
+  (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
+                                                             (y (resolution (current-viewport)))
+                                                             0.1
+                                                             30f0
+                                                             60f0)))
+
+(defparameter my-second-buffer nil)
+(defparameter my-second-array nil)
+
 
 (defparameter rendering-paused? nil)
 (defparameter blending-params nil)
 (defparameter frame-queued? t)
 
+(defparameter gate t)
+
 
 (defun step-rendering-cube ()
   (unless rendering-paused?
-    (unless my-cool-fbo
-      (setf my-cool-fbo (make-fbo 0 :d)))
-    (unless my-cool-fbo-texture
-      (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
-    (unless my-cool-fbo-texture-sampler
-      (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
-
-    ;;(gl:enable :depth-test)
     
-    (when *vert-array-buffer-stream*
-      (bt:with-lock-held (fbo-texture-lock)
-        (with-fbo-bound (my-cool-fbo)
-          ;;(gl:clear-depth 0)
-          (clear)
-          (map-g #'basic-pipeline *vert-array-buffer-stream*
-                 :now (now)
-                 :proj *projection-matrix*
-                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
-                 :sampler cute-sampler)
-          (gl:finish))))
-    ;;(gl:disable :depth-test)
+    ;; (when gate
+    ;;   (setf gate nil)
+    ;;   (setq my-data
+    ;;         (funcall-g 'my-cool-func-g (vec2 (* 0.5) (* 0.5)) :sampler cute-sampler)))
+    
+    
+    
+    ;; (when *vert-array-buffer-stream*
+      ;; (bt:with-lock-held (fbo-texture-lock)
+      ;;   (when (and ;;frame-queued?
+      ;;              *vert-array-buffer-stream*)
+      ;;     ;; (with-fbo-bound (my-cool-fbo)
+      ;;     ;;   ;;(gl:clear-depth 0)
+      ;;     ;;   )
+      ;;     (clear)
+      ;;     (map-g #'basic-pipeline *vert-array-buffer-stream*
+      ;;            :now (now)
+      ;;            :proj *projection-matrix*
+      ;;            :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
+      ;;            :sampler cute-sampler)
+      ;;     (swap)
+      ;;     (gl:flush)
+    ;;     (setf frame-queued? nil)))
+
+    ;; (when (and ;;frame-queued?
+    ;;        ;;gate
+    ;;        *vert-array-buffer-stream*)
+
+    ;;   (clear)
+    ;;   (map-g #'basic-pipeline *vert-array-buffer-stream*
+    ;;          :now (now)
+    ;;          :proj *projection-matrix*
+    ;;          :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
+    ;;          :my-ssbo my-cool-ssbo
+    ;;          )
+    ;;   (swap)
+    ;;   (gl:finish)
+
+    ;;   (setf gate nil)
+    ;;   )
     (sleep 0.0001)
-    ))
+      ;;(gl:enable :depth-test)
+      
+      ;; (with-fbo-bound (my-cool-fbo)
+;;         (with-temp-sampler (temp-sampler (dirt:load-image-to-texture "3.jpg"))
+;; )
+;;         ;;(swap)
+;;         ;;(gl:finish)
+;;         )
+      
+
+      
+    ;;(sleep 0.001)
+      )
+    ;;(gl:disable :depth-test)
+    ;;(sleep 0.0001)
+    )
 
 (defun step-rendering ()
   (unless rendering-paused?
-    (ignore-errors
-     (setf (resolution (current-viewport))
-           (get-cepl-context-surface-resolution)))
-    (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
-                                                               (y (resolution (current-viewport)))
-                                                               0.1
-                                                               30f0
-                                                               60f0))
+
 
     
-    (gl:enable :depth-test)
-    (when (and plane-buffer-stream
-               my-cool-fbo-texture-sampler)
-      (bt:with-lock-held (fbo-texture-lock)
-        (clear)
-        (map-g #'plane-pipeline plane-buffer-stream
-               :tex-sampler my-cool-fbo-texture-sampler)
-        (swap)))
-    (step-host)
-    (sleep 0.0001)
+   (gl:enable :depth-test)
+    (when (and ;;(not frame-queued?)
+           plane-buffer-stream
+           ;;my-cool-fbo-texture-sampler
+           my-cool-ssbo)
+        (bt:with-lock-held (fbo-texture-lock)
+          (progn
+            (clear)
+            (map-g #'plane-pipeline plane-buffer-stream
+                   ;;:tex-sampler my-cool-fbo-texture-sampler
+                   :ssbo my-cool-ssbo)
+            (swap)
+            ;; (gl:flush)
+            ;;(gl:finish)
+            ;;(step-host)
+            ;;(setf frame-queued? t)
+            ))
+        ;;(step-host)
+      
+      )
+    
+    ;;(sleep 0.0001)
     ))
 
+(defparameter my-cool-gpu-array nil)
+(defparameter my-cool-image-data nil)
+(defparameter my-cool-texture-c-array nil)
+(defparameter my-cool-ssbo nil)
 
 (defparameter main-loop-func (lambda ()
                                (livesupport:continuable
+                                 
                                  (livesupport:update-repl-link)
+                                 
                                  (step-rendering)
                                  (step-host)
-                                 (unless render-context
-                                   (start-cube-render-thread)))))
+                                 (sleep 0.0001)
+                                 ;; (when (boundp 'my-data)
+                                 ;;   (print my-data))
+                                 ;; (unless render-context
+                                 ;;   )
+                                 
+                                 
+                                 )))
 
 (defparameter dirty? nil)
 (defparameter last-time-run (now))
 (defparameter second-context nil)
-;; (defparameter second-thread-func
-;;   (lambda ()
-;;     (livesupport:continuable
-;;       (if dirty?
-;;           (with-cepl-context (woop my-shared-context)
-;;             (setf *vert-array-buffer-stream* (make-buffer-stream (make-gpu-array cube-2) :index-array *vert-gpu-index-array*))
-;;             (setf dirty? nil)
-;;             (gl:finish))
-;;           (sleep 0.1))))
-
-;;   ;; (lambda ()
-                                   
-;;                                  ;;   ;;(sleep 0.1)
-;;                                  ;;   ;; (with-cepl-context (my-cool-context my-shared-context)
-                                     
-;;                                  ;;   ;;   (sleep 0.1)
-;;                                  ;;   (livesupport:continuable
-;;                                  ;;     (if dirty?
-;;                                  ;;         (let* ()
-;;                                  ;;           (setf last-time-run (now))
-;;                                  ;;           ;;(setf *vert-array-buffer-stream* (make-buffer-stream (make-gpu-array cube-2) :index-array *vert-gpu-index-array*))
-;;                                  ;;           (setf *vert-gpu-array* (make-gpu-array cube-2))
-;;                                  ;;           (setf dirty? nil))
-;;                                  ;;         (sleep 0.1)))
-;;                                  ;;   ;;   )
-;;                                  ;;   )
-;;   )
 
 (defparameter last-run (now))
 (defparameter ctx nil)
 (defparameter dirty? nil)
 (defparameter flipflop nil)
-(defparameter inner-loader-thread-func (lambda ()
-                                         (if dirty?
-                                             (progn
-                                               (setf flipflop (not flipflop))
-                                               (setf dirty? nil)
+;; (defparameter inner-loader-thread-func (lambda ()
+;;                                          (if dirty?
+;;                                              (progn
+;;                                                (setf flipflop (not flipflop))
+;;                                                (setf dirty? nil)
 
-                                               (if my-second-array
-                                                   (progn
-                                                     (try-free my-second-array)
-                                                     (setf my-second-array nil))
+;;                                                (if my-second-array
+;;                                                    (progn
+;;                                                      (try-free my-second-array)
+;;                                                      (setf my-second-array nil))
                                                    
-                                                   (progn
-                                                     (setf my-second-array (make-gpu-array cube-2))
-                                                     (gl:finish))))
+;;                                                    (progn
+;;                                                      (setf my-second-array (make-gpu-array cube-2))
+;;                                                      (gl:finish))))
                                              
-                                             (sleep 0.1))))
+;;                                              (sleep 0.1))))
 
-(defun init-ctx ()
-  (setf ctx (or ctx (cepl.context:make-context-shared-with-current-context))))
+;; (defun init-ctx ()
+;;   (setf ctx (or ctx (cepl.context:make-context-shared-with-current-context))))
 
-(defun make-loader-thread ()
-  (init-ctx)
+;; (defun make-loader-thread ()
+;;   (init-ctx)
   
-  (bt:make-thread (lambda ()
-                    (loop (livesupport:continuable (funcall inner-loader-thread-func))))))
+;;   (bt:make-thread (lambda ()
+;;                     (loop (livesupport:continuable (funcall inner-loader-thread-func))))))
 
 ;; we could have an issue wherein the context is defined outside of the lambda... like a binding issue, we're not doing dynamic binding but rather binding on definition. sigh.
-
-(defun main ()
-  (cepl:repl)
-  (init)
-  (make-loader-thread)
-  ;;(start-cube-render-thread)
-  (loop (funcall main-loop-func)))
-
-
 
 
 ;;=======================
@@ -462,3 +584,17 @@
           :face-float face-float
           :texture-atlas-index texture-atlas-index)))
 ;;==========================
+
+;;(defparameter separate-rendering-thread? t)
+
+(defun main ()
+  (cepl:repl)
+  (init)
+  ;;(make-loader-thread)
+  ;;(start-cube-render-thread)
+  ;;(temp-func-setup-rendering)
+  ;;(setf (cepl.sdl2::vsync) nil)
+  (gl:enable :depth-test)
+  (start-cube-render-thread)
+  (loop (funcall main-loop-func)))
+
