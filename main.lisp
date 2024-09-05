@@ -84,48 +84,31 @@
                      &uniform
                      (now :float)
                      (proj :mat4)
-                     (rot :vec3)
-                     ;;(rot-mat :mat4)
-                     )
+                     (rot :vec3))
   (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 1)))
-         ;; (pos (ivec4 (int (aref vert 0))
-         ;;             (int (aref vert 1))
-         ;;             (int (aref vert 2))
-         ;;             1))
-         
          (col (if (or (isinf (aref pos 0))
                       (isinf (aref pos 1))
                       (isinf (aref pos 2)))
                   (vec3 1.0 0.0 0.0)
                   (vec3 0.0 0.0 1.0)))
-         ;;(pos (+ pos (vec4 -200 2 -300.5 0)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0)))
-         ;;(pos (+ pos (vec4 0 0 -5 0)))
-         )
+         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0))))
     (values (* proj pos)
      
-            (vec3 (aref pos 0)
-                 (aref pos 1)
-                 (aref pos 2))
+            (vec3 (aref vert 0)
+                  (aref vert 1)
+                  (aref vert 2))
             (:feedback :flat (ivec4 (int (aref pos 0))
                                     (int (aref pos 1))
                                     (int (aref pos 2))
-                                    (int (aref pos 3))))
-            ;;(vec3 (aref vert 0) (aref vert 1) (aref vert 2))
-            )))
+                                    (int (aref pos 3)))))))
 
 (defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4))
-  
-  ;; (v4:+s (vec4 col 1) 0.5)
-  (let ((col (vec4 (mod (aref col 0) 1.0)
-                   (mod (aref col 1) 1.0)
-                   (mod (aref col 2) 1.0)
-                   1.0)))
-    col)
-  
-  ;; (let ((col (+ col (vec3 1.0 1.0 1.0))))
-  ;;   (vec4 col 1))
-  )
+  ;; (let ((col (vec4 (mod (aref col 0) 1.0)
+  ;;                  (mod (aref col 1) 1.0)
+  ;;                  (mod (aref col 2) 1.0)
+  ;;                  1.0)))
+  ;;   col)
+  col)
 
 (defpipeline-g basic-pipeline ()
   (vert-stage :vec3)
@@ -163,18 +146,19 @@
   (sb-thread:make-thread (lambda ()
                            (with-cepl-context (ctx render-context)
                              (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*)
-                             (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
-                                                                                6 5 4 7 6 4
-                                                                                9 10 8 10 11 8
-                                                                                15 14 12 13 15 12
-                                                                                18 17 16 19 18 16
-                                                                                22 21 20 21 23 20)
+                             (setf *vert-gpu-index-array* (make-gpu-array (list 0 1 2 0 2 3
+                                                                                4 5 6 4 6 7
+                                                                                8 10 9 8 11 10
+                                                                                12 14 15 12 15 13
+                                                                                16 17 18 16 18 19
+                                                                                20 21 22 20 23 21)
                                                                           :element-type :uint))
                              (setf *vert-gpu-array* (make-gpu-array
                                                      cube-1
                                                      :element-type :vec3))
                              (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
-
+                             (setf (cepl:depth-test-function) #'<)
+                             (setq my-depth-func (cepl:depth-test-function))
                              (loop (funcall cube-render-func))
                              ))
                          :name "cube-rendering-thread"))
@@ -198,24 +182,30 @@
 (defparameter blending-params nil)
 (defparameter frame-queued? t)
 
+
 (defun step-rendering-cube ()
   (unless rendering-paused?
     (unless my-cool-fbo
-      (setf my-cool-fbo (make-fbo 0)))
+      (setf my-cool-fbo (make-fbo 0 :d)))
     (unless my-cool-fbo-texture
       (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
     (unless my-cool-fbo-texture-sampler
       (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
+
+    ;;(gl:enable :depth-test)
     
     (when *vert-array-buffer-stream*
       (bt:with-lock-held (fbo-texture-lock)
         (with-fbo-bound (my-cool-fbo)
+          ;;(gl:clear-depth 0)
           (clear)
+
           (map-g #'basic-pipeline *vert-array-buffer-stream*
                  :now (now)
                  :proj *projection-matrix*
                  :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
           (gl:finish))))
+    ;;(gl:disable :depth-test)
     (sleep 0.0001)))
 
 (defun step-rendering ()
@@ -229,6 +219,8 @@
                                                                30f0
                                                                60f0))
 
+    
+    (gl:enable :depth-test)
     (when (and plane-buffer-stream
                my-cool-fbo-texture-sampler)
       (bt:with-lock-held (fbo-texture-lock)
@@ -244,7 +236,9 @@
                                (livesupport:continuable
                                  (livesupport:update-repl-link)
                                  (step-rendering)
-                                 (step-host))))
+                                 (step-host)
+                                 (unless render-context
+                                   (start-cube-render-thread)))))
 
 (defparameter dirty? nil)
 (defparameter last-time-run (now))
@@ -313,6 +307,7 @@
   (cepl:repl)
   (init)
   (make-loader-thread)
+  ;;(start-cube-render-thread)
   (loop (funcall main-loop-func)))
 
 
