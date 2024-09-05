@@ -191,6 +191,8 @@
 (defparameter my-cool-fbo nil)
 (defparameter my-cool-fbo-texture nil)
 (defparameter my-cool-fbo-texture-sampler nil)
+(defparameter fbo-texture-lock (bt:make-lock "fbo-texture-lock"))
+(defparameter fbo-tex-mutex (sb-thread:make-mutex))
 
 (defparameter rendering-paused? nil)
 (defparameter blending-params nil)
@@ -205,26 +207,19 @@
     (unless my-cool-fbo-texture-sampler
       (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
     
-    (when (and ;;frame-queued?
-               *vert-array-buffer-stream*)
-      ;;(setf rendering-paused? t)
-      (with-fbo-bound (my-cool-fbo)
-        (clear)
-        (map-g #'basic-pipeline *vert-array-buffer-stream*
-               :now (now)
-               :proj *projection-matrix*
-               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
-        ;;(setf frame-queued? nil)
-        )
-      ;;(setf rendering-paused? nil)
-      )
-    (sleep 0.001)
-    ))
+    (when *vert-array-buffer-stream*
+      (bt:with-lock-held (fbo-texture-lock)
+        (with-fbo-bound (my-cool-fbo)
+          (clear)
+          (map-g #'basic-pipeline *vert-array-buffer-stream*
+                 :now (now)
+                 :proj *projection-matrix*
+                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
+          (gl:finish))))
+    (sleep 0.0001)))
 
 (defun step-rendering ()
   (unless rendering-paused?
-    (clear)
-
     (ignore-errors
      (setf (resolution (current-viewport))
            (get-cepl-context-surface-resolution)))
@@ -234,22 +229,15 @@
                                                                30f0
                                                                60f0))
 
-    
-    
-    
-    ;;(step-rendering-cube)
-    (when (and ;;(not frame-queued?)
-               plane-buffer-stream
+    (when (and plane-buffer-stream
                my-cool-fbo-texture-sampler)
-      (map-g #'plane-pipeline plane-buffer-stream
-             :tex-sampler my-cool-fbo-texture-sampler)
-      ;;(setf frame-queued? t)
-      )
-
-    
-    (swap))
-  
-  (step-host))
+      (bt:with-lock-held (fbo-texture-lock)
+        (clear)
+        (map-g #'plane-pipeline plane-buffer-stream
+               :tex-sampler my-cool-fbo-texture-sampler)
+        (swap)))
+    (step-host)
+    (sleep 0.0001)))
 
 
 (defparameter main-loop-func (lambda ()
