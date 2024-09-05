@@ -138,10 +138,10 @@
           (tex vert)))
 
 (defun-g plane-frag-stage ((pos :vec3) (texture-coordinate :vec2) &uniform (tex-sampler :sampler-2d))
-  ;; (vec4 (mod (aref pos 0) 1.0)
-  ;;       (mod (aref pos 1) 1.0)
-  ;;       (mod (aref pos 2) 1.0)
-  ;;       1.0)
+  (vec4 (mod (aref pos 0) 1.0)
+        (mod (aref pos 1) 1.0)
+        (mod (aref pos 2) 1.0)
+        1.0)
   (texture tex-sampler texture-coordinate)
   )
 
@@ -152,9 +152,14 @@
 (defun now ()
   (float (/ (get-internal-real-time) 1000)))
 
+(defun get-cepl-context-surface-resolution ()
+  (surface-resolution (current-surface (cepl-context))))
+
 (defun init ()
   (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*
                     plane-vert-array plane-index-array plane-buffer-stream)
+
+  
   
   (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
                                                      6 5 4 7 6 4
@@ -174,11 +179,7 @@
   (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array))
 
   
-  (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
-                                                              (y (resolution (current-viewport)))
-                                                              0.1
-                                                              30f0
-                                                              60f0))
+  
 
   (setf *transform-feedback-gpu-array* (make-gpu-array nil :dimensions 24 :element-type :vec4))
   (setf *transform-feedback-stream* (make-transform-feedback-stream *transform-feedback-gpu-array*))
@@ -197,6 +198,16 @@
 (defun step-rendering ()
   (unless rendering-paused?
     (clear)
+
+    (ignore-errors
+     (setf (resolution (current-viewport))
+           (get-cepl-context-surface-resolution)))
+    (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
+                                                               (y (resolution (current-viewport)))
+                                                               0.1
+                                                               30f0
+                                                               60f0))
+    
     (unless my-cool-fbo
       (setf my-cool-fbo (make-fbo 0)))
     (unless my-cool-fbo-texture
@@ -246,7 +257,7 @@
 
 
 (defparameter main-loop-func (lambda ()
-                               (livesupport:continuable                                 
+                               (livesupport:continuable
                                  (livesupport:update-repl-link)
                                  (step-rendering)
                                  (step-host))))
