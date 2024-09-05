@@ -212,30 +212,30 @@
   (clear)
   (unless my-cool-fbo
     (setf my-cool-fbo (make-fbo 0)))
-  (if my-second-array
-      (progn
-        (progn
-          (try-free my-second-buffer)
-          (setf my-second-buffer nil)
-          (setf my-second-buffer (make-buffer-stream my-second-array :index-array *vert-gpu-index-array*)))
-        (map-g #'basic-pipeline my-second-buffer
-               :now (now)
-               :proj *projection-matrix*
-               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
+  ;; (if my-second-array
+  ;;     (progn
+  ;;       (progn
+  ;;         (try-free my-second-buffer)
+  ;;         (setf my-second-buffer nil)
+  ;;         (setf my-second-buffer (make-buffer-stream my-second-array :index-array *vert-gpu-index-array*)))
+  ;;       (map-g #'basic-pipeline my-second-buffer
+  ;;              :now (now)
+  ;;              :proj *projection-matrix*
+  ;;              :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
       
-      ;;nil
-      (when *vert-array-buffer-stream*
-        (with-transform-feedback (*transform-feedback-stream*)
-         (map-g #'basic-pipeline *vert-array-buffer-stream*
-                :now (now)
-                :proj *projection-matrix*
-                :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
-  ;; (if *vert-array-buffer-stream*
-  ;;     (map-g #'basic-pipeline *vert-array-buffer-stream*
-  ;;            :now (now)
-  ;;            :proj *projection-matrix*
-  ;;            :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
-  ;;     )
+  ;;     ;;nil
+  ;;     (when *vert-array-buffer-stream*
+  ;;       (with-transform-feedback (*transform-feedback-stream*)
+  ;;        (map-g #'basic-pipeline *vert-array-buffer-stream*
+  ;;               :now (now)
+  ;;               :proj *projection-matrix*
+  ;;               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
+  (if *vert-array-buffer-stream*
+      (map-g #'basic-pipeline *vert-array-buffer-stream*
+             :now (now)
+             :proj *projection-matrix*
+             :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
+      )
   
   
   (step-host)
