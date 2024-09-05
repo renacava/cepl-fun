@@ -102,13 +102,16 @@
                                     (int (aref pos 2))
                                     (int (aref pos 3)))))))
 
-(defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4))
-  ;; (let ((col (vec4 (mod (aref col 0) 1.0)
-  ;;                  (mod (aref col 1) 1.0)
-  ;;                  (mod (aref col 2) 1.0)
-  ;;                  1.0)))
-  ;;   col)
-  col)
+(defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4) &uniform (sampler :sampler-2d))
+  (let ((col (vec4 (mod (aref col 0) 1.0)
+                   (mod (aref col 1) 1.0)
+                   (mod (aref col 2) 1.0)
+                   1.0)))
+    col)
+  ;;(vec4 1.0 1.0 1.0 1.0)
+  (texture sampler (vec2 (mod (aref col 0) 1.0) (mod (aref col 1) 1.0)))
+  ;;col
+  )
 
 (defpipeline-g basic-pipeline ()
   (vert-stage :vec3)
@@ -159,6 +162,8 @@
                              (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
                              (setf (cepl:depth-test-function) #'<)
                              (setq my-depth-func (cepl:depth-test-function))
+                             (defparameter cute-tex (dirt:load-image-to-texture "3.jpg"))
+                             (defparameter cute-sampler (sample cute-tex))
                              (loop (funcall cube-render-func))
                              ))
                          :name "cube-rendering-thread"))
@@ -199,14 +204,15 @@
         (with-fbo-bound (my-cool-fbo)
           ;;(gl:clear-depth 0)
           (clear)
-
           (map-g #'basic-pipeline *vert-array-buffer-stream*
                  :now (now)
                  :proj *projection-matrix*
-                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
+                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
+                 :sampler cute-sampler)
           (gl:finish))))
     ;;(gl:disable :depth-test)
-    (sleep 0.0001)))
+    (sleep 0.0001)
+    ))
 
 (defun step-rendering ()
   (unless rendering-paused?
@@ -229,7 +235,8 @@
                :tex-sampler my-cool-fbo-texture-sampler)
         (swap)))
     (step-host)
-    (sleep 0.0001)))
+    (sleep 0.0001)
+    ))
 
 
 (defparameter main-loop-func (lambda ()
