@@ -195,6 +195,22 @@
 (defparameter rendering-paused? nil)
 (defparameter blending-params nil)
 
+(defun step-rendering-cube ()
+  (unless rendering-paused?
+    (unless my-cool-fbo
+      (setf my-cool-fbo (make-fbo 0)))
+    (unless my-cool-fbo-texture
+      (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
+    (unless my-cool-fbo-texture-sampler
+      (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
+    (if *vert-array-buffer-stream*
+        (with-fbo-bound (my-cool-fbo)
+          (clear)
+          (map-g #'basic-pipeline *vert-array-buffer-stream*
+                 :now (now)
+                 :proj *projection-matrix*
+                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))))))
+
 (defun step-rendering ()
   (unless rendering-paused?
     (clear)
@@ -208,47 +224,10 @@
                                                                30f0
                                                                60f0))
     
-    (unless my-cool-fbo
-      (setf my-cool-fbo (make-fbo 0)))
-    (unless my-cool-fbo-texture
-      (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
-    (unless my-cool-fbo-texture-sampler
-      (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
-    ;; (if my-second-array
-    ;;     (progn
-    ;;       (progn
-    ;;         (try-free my-second-buffer)
-    ;;         (setf my-second-buffer nil)
-    ;;         (setf my-second-buffer (make-buffer-stream my-second-array :index-array *vert-gpu-index-array*)))
-    ;;       (map-g #'basic-pipeline my-second-buffer
-    ;;              :now (now)
-    ;;              :proj *projection-matrix*
-    ;;              :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
-    
-    ;;     ;;nil
-    ;;     (when *vert-array-buffer-stream*
-    ;;       (with-transform-feedback (*transform-feedback-stream*)
-    ;;        (map-g #'basic-pipeline *vert-array-buffer-stream*
-    ;;               :now (now)
-    ;;               :proj *projection-matrix*
-    ;;               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
-    (with-blending (or blending-params
-                       (setf blending-params (make-blending-params)))
-      
-      
-      (if *vert-array-buffer-stream*
-          (with-fbo-bound (my-cool-fbo)
-            (clear)
-            (map-g #'basic-pipeline *vert-array-buffer-stream*
-                   :now (now)
-                   :proj *projection-matrix*
-                   :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
-          )
-
-      (if plane-buffer-stream
-          (map-g #'plane-pipeline plane-buffer-stream
-                 :tex-sampler my-cool-fbo-texture-sampler))
-      )
+    (step-rendering-cube)
+    (if plane-buffer-stream
+        (map-g #'plane-pipeline plane-buffer-stream
+               :tex-sampler my-cool-fbo-texture-sampler))
 
     
     (swap))
