@@ -160,8 +160,15 @@
             )))
 
 (defun-g frag-stage ((col :vec3) (my-ivec3 :ivec4))
-  (vec4 col 1)
-  ;; (let ((col (+ col (vec3 0.5 0.5 0.5))))
+  
+  ;; (v4:+s (vec4 col 1) 0.5)
+  (let ((col (vec4 (mod (aref col 0) 1.0)
+                   (mod (aref col 1) 1.0)
+                   (mod (aref col 2) 1.0)
+                   1.0)))
+    col)
+  
+  ;; (let ((col (+ col (vec3 1.0 1.0 1.0))))
   ;;   (vec4 col 1))
   )
 
@@ -199,9 +206,12 @@
 
 (defparameter my-second-buffer nil)
 (defparameter my-second-array nil)
+(defparameter my-cool-fbo nil)
 
 (defun step-rendering ()
   (clear)
+  (unless my-cool-fbo
+    (setf my-cool-fbo (make-fbo 0)))
   (if my-second-array
       (progn
         (progn
