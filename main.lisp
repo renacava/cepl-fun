@@ -138,10 +138,12 @@
           (tex vert)))
 
 (defun-g plane-frag-stage ((pos :vec3) (texture-coordinate :vec2) &uniform (tex-sampler :sampler-2d))
-  (vec4 (mod (aref pos 0) 1.0)
-        (mod (aref pos 1) 1.0)
-        (mod (aref pos 2) 1.0)
-        1.0))
+  ;; (vec4 (mod (aref pos 0) 1.0)
+  ;;       (mod (aref pos 1) 1.0)
+  ;;       (mod (aref pos 2) 1.0)
+  ;;       1.0)
+  (texture tex-sampler texture-coordinate)
+  )
 
 (defpipeline-g plane-pipeline ()
   (plane-vert-stage g-pt)
@@ -186,6 +188,8 @@
 (defparameter my-second-buffer nil)
 (defparameter my-second-array nil)
 (defparameter my-cool-fbo nil)
+(defparameter my-cool-fbo-texture nil)
+(defparameter my-cool-fbo-texture-sampler nil)
 
 (defparameter rendering-paused? nil)
 (defparameter blending-params nil)
@@ -195,6 +199,10 @@
     (clear)
     (unless my-cool-fbo
       (setf my-cool-fbo (make-fbo 0)))
+    (unless my-cool-fbo-texture
+      (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
+    (unless my-cool-fbo-texture-sampler
+      (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
     ;; (if my-second-array
     ;;     (progn
     ;;       (progn
@@ -215,22 +223,26 @@
     ;;               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))))
     (with-blending (or blending-params
                        (setf blending-params (make-blending-params)))
-      (without-depth
-        (if plane-buffer-stream
-            (map-g #'plane-pipeline plane-buffer-stream)))
+      
       
       (if *vert-array-buffer-stream*
-          
-          (map-g #'basic-pipeline *vert-array-buffer-stream*
-                 :now (now)
-                 :proj *projection-matrix*
-                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))))
+          (with-fbo-bound (my-cool-fbo)
+            (clear)
+            (map-g #'basic-pipeline *vert-array-buffer-stream*
+                   :now (now)
+                   :proj *projection-matrix*
+                   :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))))
+          )
+
+      (if plane-buffer-stream
+          (map-g #'plane-pipeline plane-buffer-stream
+                 :tex-sampler my-cool-fbo-texture-sampler))
+      )
 
     
     (swap))
   
-  (step-host)
-  )
+  (step-host))
 
 
 (defparameter main-loop-func (lambda ()
