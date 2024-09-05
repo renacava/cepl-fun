@@ -10,8 +10,8 @@
 (defparameter *vert-gpu-index-array* nil)
 (defparameter *vert-array-buffer-stream* nil)
 (defparameter *projection-matrix* nil)
-(defparameter *transform-feedback-gpu-array* nil)
-(defparameter *transform-feedback-stream* nil)
+;;(defparameter *transform-feedback-gpu-array* nil)
+;;(defparameter *transform-feedback-stream* nil)
  
 (defparameter cube-1 (list (vec3 0.0 1.0 0.0) ;;0   FRONT
                            (vec3 0.0 0.0 0.0) ;;1
@@ -155,36 +155,36 @@
 (defun get-cepl-context-surface-resolution ()
   (surface-resolution (current-surface (cepl-context))))
 
+(defparameter render-context nil)
+(defparameter cube-render-func (lambda () (step-rendering-cube)))
+
+(defun start-cube-render-thread ()
+  (unless render-context (setf render-context (make-context-shared-with-current-context)))
+  (sb-thread:make-thread (lambda ()
+                           (with-cepl-context (ctx render-context)
+                             (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*)
+                             (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
+                                                                                6 5 4 7 6 4
+                                                                                9 10 8 10 11 8
+                                                                                15 14 12 13 15 12
+                                                                                18 17 16 19 18 16
+                                                                                22 21 20 21 23 20)
+                                                                          :element-type :uint))
+                             (setf *vert-gpu-array* (make-gpu-array
+                                                     cube-1
+                                                     :element-type :vec3))
+                             (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
+
+                             (loop (funcall cube-render-func))
+                             ))
+                         :name "cube-rendering-thread"))
+
 (defun init ()
-  (try-free-objects *vert-gpu-array* *vert-gpu-index-array* *vert-array-buffer-stream*
-                    plane-vert-array plane-index-array plane-buffer-stream)
-
-  
-  
-  (setf *vert-gpu-index-array* (make-gpu-array (list 2 1 0 3 2 0
-                                                     6 5 4 7 6 4
-                                                     9 10 8 10 11 8
-                                                     15 14 12 13 15 12
-                                                     18 17 16 19 18 16
-                                                     22 21 20 21 23 20)
-                                               :element-type :uint))
-  (setf *vert-gpu-array* (make-gpu-array
-                          cube-1
-                          :element-type :vec3))
-  (setf *vert-array-buffer-stream* (make-buffer-stream *vert-gpu-array* :index-array *vert-gpu-index-array*))
-
+  (try-free-objects plane-vert-array plane-index-array plane-buffer-stream)
 
   (setf plane-vert-array (make-gpu-array plane-1 :element-type 'g-pt)
         plane-index-array (make-gpu-array plane-indices :element-type :uint))
-  (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array))
-
-  
-  
-
-  (setf *transform-feedback-gpu-array* (make-gpu-array nil :dimensions 24 :element-type :vec4))
-  (setf *transform-feedback-stream* (make-transform-feedback-stream *transform-feedback-gpu-array*))
-
-  )
+  (setf plane-buffer-stream (make-buffer-stream plane-vert-array :index-array plane-index-array)))
 
 (defparameter my-second-buffer nil)
 (defparameter my-second-array nil)
@@ -194,6 +194,7 @@
 
 (defparameter rendering-paused? nil)
 (defparameter blending-params nil)
+(defparameter frame-queued? t)
 
 (defun step-rendering-cube ()
   (unless rendering-paused?
@@ -203,13 +204,22 @@
       (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0)))
     (unless my-cool-fbo-texture-sampler
       (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture)))
-    (if *vert-array-buffer-stream*
-        (with-fbo-bound (my-cool-fbo)
-          (clear)
-          (map-g #'basic-pipeline *vert-array-buffer-stream*
-                 :now (now)
-                 :proj *projection-matrix*
-                 :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))))))
+    
+    (when (and ;;frame-queued?
+               *vert-array-buffer-stream*)
+      ;;(setf rendering-paused? t)
+      (with-fbo-bound (my-cool-fbo)
+        (clear)
+        (map-g #'basic-pipeline *vert-array-buffer-stream*
+               :now (now)
+               :proj *projection-matrix*
+               :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now))))
+        ;;(setf frame-queued? nil)
+        )
+      ;;(setf rendering-paused? nil)
+      )
+    (sleep 0.001)
+    ))
 
 (defun step-rendering ()
   (unless rendering-paused?
@@ -223,11 +233,18 @@
                                                                0.1
                                                                30f0
                                                                60f0))
+
     
-    (step-rendering-cube)
-    (if plane-buffer-stream
-        (map-g #'plane-pipeline plane-buffer-stream
-               :tex-sampler my-cool-fbo-texture-sampler))
+    
+    
+    ;;(step-rendering-cube)
+    (when (and ;;(not frame-queued?)
+               plane-buffer-stream
+               my-cool-fbo-texture-sampler)
+      (map-g #'plane-pipeline plane-buffer-stream
+             :tex-sampler my-cool-fbo-texture-sampler)
+      ;;(setf frame-queued? t)
+      )
 
     
     (swap))
