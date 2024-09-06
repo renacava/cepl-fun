@@ -22,6 +22,7 @@
                #:deploy
                #:livesupport)
   :components ((:file "package")
+               (:file "nonsense")
                (:file "main"))
 	:defsystem-depends-on (:deploy)
 	:build-operation "deploy-op"
