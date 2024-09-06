@@ -69,29 +69,32 @@
                      (proj :mat4)
                      (rot :vec3))
   (let* ((pos (* (rtg-math.matrix4:rotation-from-euler rot) (vec4 vert 1)))
+         ;;(pos (vec4 vert 1))
+         (pos (+ pos (vec4 0.0 -2.0 -5.0 0.0)))
          (col (if (or (isinf (aref pos 0))
                       (isinf (aref pos 1))
                       (isinf (aref pos 2)))
                   (vec3 1.0 0.0 0.0)
                   (vec3 0.0 0.0 1.0)))
-         (pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0))))
+         ;;(pos (+ pos (vec4 (* 2 (sin now)) (* 3 (cos now)) -5 0)))
+         )
     (values (* proj pos)
             (vec3 (aref vert 0)
                   (aref vert 1)
                   (aref vert 2)))))
 
 (defstruct-g ssbo-struct
-  (data (:vec4 4096) :accessor data))
+  (data (:vec4 256) :accessor data))
 
 (defun-g frag-stage ((col :vec3) &uniform (my-ssbo ssbo-struct :ssbo))
   (let* ((col (vec4 (mod (aref col 0) 1.0)
                     (mod (aref col 1) 1.0)
                     (mod (aref col 2) 1.0)
                     1.0))
-         (uv-index (int (mod (2d-to-1d-g (int (* 64 (aref col 0)))
-                                         (int (* 64 (aref col 1)))
-                                         64)
-                             4096)))
+         (uv-index (int (mod (* 1 (2d-to-1d-g (int (* 16 (aref col 0)))
+                                              (int (* 16 (aref col 1)))
+                                              16))
+                             256)))
          (my-data (/ (aref (data my-ssbo) uv-index) 255.0)))
     (if (and (> (aref my-data 0) 0.9)
              (> (aref my-data 1) 0.9)
@@ -112,12 +115,10 @@
                            &uniform
                            (tex-sampler :sampler-2d)
                            (ssbo ssbo-struct :ssbo))
-  (let* ((uv-index (int (mod (2d-to-1d-g (int (* 64 (aref texture-coordinate 1)))
-                                         (int (* 64 (aref texture-coordinate 0)))
-                                         64)
-                             4096)))
-         (my-data (/ (aref (data ssbo) uv-index) 255.0)))
-    my-data))
+  (texture tex-sampler (vec2 (aref texture-coordinate 0)
+                             (aref texture-coordinate 1)))
+  ;;(vec4 0.0 0.0 0.0 0.0)
+  )
 
 (defpipeline-g plane-pipeline ()
   (plane-vert-stage g-pt)
@@ -169,9 +170,9 @@
   (setq my-depth-func (cepl:depth-test-function))
   (setf my-cool-fbo (make-fbo 0 :d))
   (setf my-cool-fbo-texture (attachment-tex my-cool-fbo 0))
-  (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture))
+  (setf my-cool-fbo-texture-sampler (sample my-cool-fbo-texture :minify-filter :nearest-mipmap-nearest :magnify-filter :nearest))
   (unless my-cool-image-data
-    (setf my-cool-image-data (list (list (loop for row in (pull-g (dirt:load-image-to-c-array "5.jpg"))
+    (setf my-cool-image-data (list (list (loop for row in (pull-g (dirt:load-image-to-c-array "projects/cepl-fun/cobble.png"))
                                                append (mapcar #'v! row))))))
   (unless my-cool-texture-c-array
     (setf my-cool-texture-c-array (make-c-array my-cool-image-data
@@ -204,27 +205,40 @@
   (unless rendering-paused?
     (when (and 
            *vert-array-buffer-stream*)
+      (bt:with-lock-held (fbo-texture-lock)
+        (with-fbo-bound (my-cool-fbo)
+          (clear)
+          (map-g #'basic-pipeline *vert-array-buffer-stream*
+                 :now (now)
+                 :proj *projection-matrix*
+                 :rot (vec3 0.0 0.7 0.0) ;;(v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
+                 :my-ssbo my-cool-ssbo)
+          (gl:finish)))
       
-      (clear)
-      (map-g #'basic-pipeline *vert-array-buffer-stream*
-             :now (now)
-             :proj *projection-matrix*
-             :rot (v! (* 90 0.03 (now)) (* 90 0.02 (now)) (* 90 0.01 (now)))
-             :my-ssbo my-cool-ssbo)
-      (swap)
-      (gl:finish))))
+      
+      ;;(swap)
+      )))
 
 (defun step-rendering ()
   (unless rendering-paused?
-    ;; (when (and plane-buffer-stream
-    ;;            my-cool-ssbo)
-    ;;   (bt:with-lock-held (fbo-texture-lock)
-    ;;     (progn
-    ;;       (clear)
-    ;;       (map-g #'plane-pipeline plane-buffer-stream
-    ;;              ;;:tex-sampler my-cool-fbo-texture-sampler
-    ;;              :ssbo my-cool-ssbo)
-    ;;       (swap))))
+    (when (and plane-buffer-stream
+               my-cool-ssbo)
+      (bt:with-lock-held (fbo-texture-lock)
+        (progn
+          (ignore-errors
+           (setf (resolution (current-viewport))
+                 (get-cepl-context-surface-resolution)))
+          (setf *projection-matrix* (rtg-math.projection:perspective (x (resolution (current-viewport)))
+                                                                     (y (resolution (current-viewport)))
+                                                                     0.1
+                                                                     30f0
+                                                                     60f0))
+          (clear)
+          (map-g #'plane-pipeline plane-buffer-stream
+                 :tex-sampler my-cool-fbo-texture-sampler
+                 ;;:ssbo my-cool-ssbo
+                 )
+          (swap))))
     ))
 
 (defparameter my-cool-gpu-array nil)
